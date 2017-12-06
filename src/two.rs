@@ -1,9 +1,7 @@
 
-use std::io::BufReader;
-use std::io::BufRead;
-use std::fs::File;
 use std::cmp::{max, min};
 use std::u32::{MAX, MIN};
+use common::read_file_contents;
 
 fn checksum(rows: Vec<(u32, u32)>) -> u32 {
   rows.iter()
@@ -24,24 +22,6 @@ fn parse_spreadsheet(raw: &str) -> Vec<(u32, u32)> {
 
   })
   .collect()
-}
-
-fn read_file_contents(filename: &str) -> String {
-  let file = File::open(filename).unwrap();
-  let reader = BufReader::new(file);
-  let mut contents = String::new();
-  for res in reader.lines() {
-    match res {
-      Ok(l) => {
-        contents.push_str(&l);
-        contents.push('\n');
-      },
-      Err(e) => {
-        panic!("Couldn't read the input file: {:?}", e);
-      }
-    }
-  }
-  contents
 }
 
 pub fn main(args: Vec<String>) {
