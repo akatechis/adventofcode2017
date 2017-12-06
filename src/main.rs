@@ -1,9 +1,9 @@
 use std::env;
 
 mod common;
-mod five;
+mod six;
 
 fn main() {
   let args: Vec<String> = env::args().collect();
-  five::main(args);
+  six::main(args);
 }
