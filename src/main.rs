@@ -1,9 +1,9 @@
 use std::env;
 
 mod common;
-mod two;
+mod nine;
 
 fn main() {
   let args: Vec<String> = env::args().collect();
-  two::main_plus(args);
+  nine::main(args);
 }
