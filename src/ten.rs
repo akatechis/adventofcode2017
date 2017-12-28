@@ -49,8 +49,6 @@ fn hash_slice(input: &mut [u8], lengths: &[usize], iterations: usize) {
 fn knot_hash(input: &mut [u8], lengths: &[usize]) -> String {
   hash_slice(input, compute_extended_lengths(lengths).as_slice(), 64);
 
-  println!("sparse hash = {:?}", input);
-
   let hash: Vec<String> = input.chunks(16)
   .map(|block| {
     let mut block_iter = block.iter();
