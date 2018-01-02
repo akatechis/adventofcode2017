@@ -1,44 +1,12 @@
 use std::collections::HashMap;
-use rayon::prelude::*;
-
-#[derive(Debug, Clone)]
-enum Dir { Up, Down }
 
 #[derive(Debug, Clone)]
 struct Scanner {
   layer: u32,
-  depth: u32,
-  current_depth: u32,
-  scan_dir: Dir
+  depth: u32
 }
 
 type Scanners = HashMap<u32, Scanner>;
-
-fn advance_scanners(scanners: &mut Scanners) {
-  scanners.values_mut().for_each(|scanner| {
-    match scanner.scan_dir {
-      Dir::Up => {
-        scanner.current_depth -= 1;
-      },
-      Dir::Down => {
-        scanner.current_depth += 1;
-      }
-    }
-    if scanner.current_depth == 0 || scanner.current_depth == scanner.depth - 1 {
-      scanner.scan_dir = match scanner.scan_dir {
-        Dir::Up => Dir::Down,
-        Dir::Down => Dir::Up
-      }
-    }
-  });
-}
-
-fn reset_scanners(scanners: &mut Scanners) {
-  scanners.values_mut().for_each(|scanner| {
-    scanner.scan_dir = Dir::Down;
-    scanner.current_depth = 0;
-  });
-}
 
 fn parse_scanners(input: &str) -> Scanners {
   let mut scanners = Scanners::new();
@@ -48,91 +16,56 @@ fn parse_scanners(input: &str) -> Scanners {
     let layer: u32 = parts.next().unwrap().replace(':', "").parse().unwrap();
     let depth: u32 = parts.next().unwrap().parse().unwrap();
 
-    scanners.insert(layer, Scanner {
-      layer, depth,
-      current_depth: 0,
-      scan_dir: Dir::Down
-    });
+    scanners.insert(layer, Scanner { layer, depth });
   });
 
   scanners
 }
 
-fn max_layer(scanners: &Scanners) -> u32 {
-  let mut layers: Vec<&u32> = scanners.keys().collect();
-  layers.sort();
-  **layers.last().unwrap()
+fn severity(severity: usize, scanner: &Scanner) -> usize {
+  if scanner.layer % (scanner.depth * 2 - 2) == 0 {
+    severity + scanner.layer as usize * scanner.depth as usize
+  }
+  else {
+    severity + 0
+  }
 }
 
-fn calculate_severity_for_trip(scanners: &mut Scanners, first_move: u32, max_severity: Option<usize>) -> usize {
-  let mut current_time = 0;
-  let mut position: i32 = -1;
-  let mut severity: usize = 0;
-  let max_layer = max_layer(&scanners);
+fn delay_scanners(scanners: &mut Scanners, delay: u32) {
+  scanners.values_mut().for_each(|scanner| {
+    scanner.layer += delay;
+  });
+}
 
-  while position < max_layer as i32 {
-    if current_time >= first_move {
-      position += 1;
-    }
+fn reset_scanners(scanners: &mut Scanners, delay: u32) {
+  scanners.values_mut().for_each(|scanner| {
+    scanner.layer -= delay;
+  });
+}
 
-    if position > -1 {
-      match scanners.get(&(position as u32)) {
-        Some(scanner) if scanner.current_depth == 0 => {
-          severity += (scanner.layer * scanner.depth) as usize;
-
-          // shortcircuit if max was specified, and we exceeded it
-          if max_severity.is_some() && severity > max_severity.unwrap() {
-            return severity;
-          }
-        },
-        _ => ()
-      }
-    }
-
-    advance_scanners(scanners);
-
-    current_time += 1;
-  }
-
+fn calculate_severity_for_trip(scanners: &mut Scanners, delay: u32) -> usize {
+  delay_scanners(scanners, delay);
+  let severity = scanners.values().fold(0, severity);
+  reset_scanners(scanners, delay);
   severity
 }
 
 fn calculate_delay_for_trip(scanners: &mut Scanners) -> u32 {
-  let mut delay = 0; //15000
-  reset_scanners(scanners);
+  let mut delay = 0;
   loop {
-    let tasks: Vec<u32> = (delay..delay+8).collect();
-    let results: Vec<Option<u32>> = tasks.par_iter()
-    .map(|delay| {
-      let mut local_scanners = scanners.clone();
-      let severity = calculate_severity_for_trip(&mut local_scanners, *delay, Some(0));
-      if severity == 0 {
-        Some(*delay)
-      }
-      else {
-        None
-      }
-    })
-    .collect();
-
-    match results.iter().find(|res| res.is_some()) {
-      Some(result) => {
-        delay = result.unwrap();
-        break;
-      },
-      None => {
-        delay += 8;
-      }
+    let severity = calculate_severity_for_trip(scanners, delay);
+    if severity == 0 {
+      break;
     }
+    delay += 1;
   }
-
   delay
 }
 
 pub fn main() {
   let input = include_str!("../input/thirteen");
   let mut scanners = parse_scanners(input);
-  let severity = calculate_severity_for_trip(&mut scanners, 0, None);
+  let severity = calculate_severity_for_trip(&mut scanners, 0);
   println!("Severity = {}", severity);
 
   let delay = calculate_delay_for_trip(&mut scanners);
@@ -146,12 +79,12 @@ mod tests {
   #[test]
   fn calculate_severity_for_trip_works() {
     let mut scanners = parse_scanners("0: 3\n1: 2\n4: 4\n6: 4");
-    assert_eq!(24, calculate_severity_for_trip(&mut scanners, 0, None));
+    assert_eq!(24, calculate_severity_for_trip(&mut scanners, 0));
   }
 
   #[test]
   fn calculate_delay_for_trip_works() {
     let mut scanners = parse_scanners("0: 3\n1: 2\n4: 4\n6: 4");
-    assert_eq!(9, calculate_delay_for_trip(&mut scanners));
+    assert_eq!(10, calculate_delay_for_trip(&mut scanners));
   }
 }
