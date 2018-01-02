@@ -44,7 +44,7 @@ fn hash_slice(lengths: &[usize], iterations: usize) -> Vec<u8> {
   input_vec
 }
 
-fn knot_hash(input: String) -> String {
+pub fn knot_hash(input: String) -> String {
   let ext_lengths = compute_extended_lengths(input);
   let sparse_hash = hash_slice(ext_lengths.as_slice(), 64);
 
