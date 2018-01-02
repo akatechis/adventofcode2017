@@ -2,3 +2,6 @@
 name = "adventofcode"
 version = "0.1.0"
 authors = ["Alexandros Katechis"]
+
+[dependencies]
+rayon = "0.9.0"

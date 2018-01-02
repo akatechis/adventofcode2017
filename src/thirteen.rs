@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use rayon::prelude::*;
 
 #[derive(Debug, Clone)]
 struct Scanner {
@@ -43,23 +44,40 @@ fn reset_scanners(scanners: &mut Scanners, delay: u32) {
   });
 }
 
-fn calculate_severity_for_trip(scanners: &mut Scanners, delay: u32) -> usize {
-  delay_scanners(scanners, delay);
-  let severity = scanners.values().fold(0, severity);
-  reset_scanners(scanners, delay);
+fn calculate_severity_for_trip(scanners: &Scanners, delay: u32) -> usize {
+  let mut t_scanners = scanners.clone();
+  delay_scanners(&mut t_scanners, delay);
+  let severity = t_scanners.values().fold(0, severity);
+  reset_scanners(&mut t_scanners, delay);
   severity
 }
 
-fn calculate_delay_for_trip(scanners: &mut Scanners) -> u32 {
+fn calculate_delay_for_trip(scanners: &Scanners) -> u32 {
   let mut delay = 0;
+  let par_factor = 8;
   loop {
-    let severity = calculate_severity_for_trip(scanners, delay);
-    if severity == 0 {
-      break;
+    let tasks: Vec<u32> = (delay..delay+par_factor).collect();
+    let results: Vec<Option<&u32>> = tasks.par_iter()
+    .map(|delay| {
+      let sev = calculate_severity_for_trip(scanners, *delay);
+      if sev == 0 {
+        Some(delay)
+      }
+      else {
+        None
+      }
+    })
+    .collect();
+
+    match results.iter().find(|res| res.is_some()) {
+      Some(delay_that_worked) => {
+        return *delay_that_worked.unwrap();
+      },
+      None => {
+        delay += par_factor;
+      }
     }
-    delay += 1;
   }
-  delay
 }
 
 pub fn main() {
