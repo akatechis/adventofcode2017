@@ -1,24 +1,31 @@
 use ten::knot_hash;
+use self::Location::*;
 
-type Disk = Vec<Vec<usize>>;
-// 0 = free
-// 1 = unmarked
-// 2.. = marked
+#[derive(Debug, PartialEq, Eq, Clone)]
+enum Location {
+  Free, Unmarked, Marked(usize)
+}
+
+type Disk = Vec<Vec<Location>>;
 
 fn create_disk_for_keystring(keystring: String) -> Disk {
-  let mut disk = vec![vec![0; 128]; 128];
+  let mut disk = vec![];
 
   for row_id in 0..128 {
+    let mut row_vec = vec![];
     let hash = knot_hash(format!("{}-{}", keystring, row_id));
-    for (h, ch) in hash.chars().enumerate() {
+    for ch in hash.chars() {
       let bits = format!("{:04b}", ch.to_digit(16).unwrap());
-      for (b, bit) in bits.chars().enumerate() {
+      for bit in bits.chars() {
         if bit == '1' {
-          let col_id = h * 4 + b;
-          disk[row_id][col_id] = 1;
+          row_vec.push(Unmarked);
+        }
+        else {
+          row_vec.push(Free);
         }
       }
     }
+    disk.push(row_vec);
   }
 
   disk
@@ -29,7 +36,7 @@ fn count_used_bits_in_disk(disk: &Disk) -> usize {
   .map(|row|
     row.iter()
     .fold(0, |b, l| match *l {
-      0 => b,
+      Free => b,
       _ => b + 1
     }))
   .sum()
@@ -44,7 +51,7 @@ fn unmarked_location(disk: &Disk) -> Option<(usize, usize)> {
     while col < disk[row].len() {
 
       match disk[row][col] {
-        1 => {
+        Unmarked => {
           return Some((row, col));
         }
         _ => {}
@@ -60,48 +67,18 @@ fn unmarked_location(disk: &Disk) -> Option<(usize, usize)> {
 }
 
 fn mark_region(disk: &mut Disk, (row, col): (usize, usize), region_id: usize) {
-  if row >= disk.len() || col >= disk[row].len() {
-    return;
-  }
-  if disk[row][col] != 1 {
-    return;
-  }
+  if row < disk.len() && col < disk[row].len() && disk[row][col] == Unmarked {
+    disk[row][col] = Marked(region_id);
 
-  // mark the rest of the row
-  let mut col_ptr = col;
-  while col_ptr < disk[row].len() {
-    if disk[row][col_ptr] == 1 {
-      disk[row][col_ptr] = region_id;
+    mark_region(disk, (row, col + 1), region_id);
+    mark_region(disk, (row + 1, col), region_id);
+
+    if col > 0 {
+      mark_region(disk, (row, col - 1), region_id);
     }
-    else {
-      break;
+    if row > 0 {
+      mark_region(disk, (row - 1, col), region_id);
     }
-    col_ptr += 1;
-  }
-
-  // mark the rest of the column
-  let mut row_ptr = row + 1;
-  while row_ptr < disk.len() {
-    if disk[row_ptr][col] == 1 {
-      disk[row_ptr][col] = region_id;
-    }
-    else {
-      break;
-    }
-    row_ptr += 1;
-  }
-
-  // if we marked down or to the right, we should try to expand to bottom-right
-  let marked_right =
-    col + 1 < disk[row].len() &&
-    disk[row][col + 1] == region_id;
-
-  let marked_bottom =
-    row + 1 < disk.len() &&
-    disk[row + 1][col] == region_id;
-
-  if marked_right || marked_bottom {
-    mark_region(disk, (row + 1, col + 1), region_id);
   }
 }
 
@@ -110,7 +87,6 @@ fn count_regions_in_disk(disk: &mut Disk) -> usize {
 
   while let Some(location) = unmarked_location(&disk) {
     regions += 1;
-    println!("Location of region = {:?}", location);
     mark_region(disk, location, 2 + regions);
   }
 
@@ -127,32 +103,19 @@ pub fn main() {
   println!("Regions = {:?}", regions);
 }
 
-fn print_disk(disk: &Disk) {
-  for row in disk {
-    for cell in row {
-      match *cell {
-        0 => print!("."),
-        1 => print!("#"),
-        _ => print!("o")
-      }
-    }
-    print!("\n");
-  }
-}
-
 #[cfg(test)]
 mod test {
   use super::*;
 
   #[test]
   fn unmarked_location_works() {
-    let mut disk1 = vec![vec![0; 128]; 128];
-    disk1[3][3] = 1;
-    disk1[4][4] = 1;
+    let mut disk1 = vec![vec![Free; 128]; 128];
+    disk1[3][3] = Unmarked;
+    disk1[4][4] = Unmarked;
 
-    let mut disk2 = vec![vec![0; 128]; 128];
-    disk2[3][3] = 2;
-    disk2[4][4] = 1;
+    let mut disk2 = vec![vec![Free; 128]; 128];
+    disk2[3][3] = Marked(2);
+    disk2[4][4] = Unmarked;
 
     assert_eq!(Some((3,3)), unmarked_location(&disk1));
     assert_eq!(Some((4,4)), unmarked_location(&disk2));
@@ -160,31 +123,78 @@ mod test {
 
   #[test]
   fn mark_region_works() {
-    let mut disk = vec![vec![0; 128]; 128];
-    disk[0][0] = 1;
-    disk[0][1] = 1;
-    disk[1][0] = 1;
-    disk[1][1] = 1;
-    disk[2][2] = 1;
-    disk[2][3] = 1;
+    use super::Location::*;
+    let mut disk = vec![vec![Free; 128]; 128];
+    disk[0][0] = Unmarked;
+    disk[0][1] = Unmarked;
+    disk[1][0] = Unmarked;
+    disk[1][1] = Unmarked;
+    disk[2][2] = Unmarked;
+    disk[2][3] = Unmarked;
+
+    disk[5][6] = Unmarked;
+    disk[5][7] = Unmarked;
+    disk[5][8] = Unmarked;
+    disk[5][9] = Unmarked;
+    disk[6][8] = Unmarked;
+    disk[7][8] = Unmarked;
+    disk[7][7] = Unmarked;
+    disk[7][6] = Unmarked;
+    disk[7][5] = Unmarked;
 
     mark_region(&mut disk, (0, 0), 3);
 
-    assert_eq!(3, disk[0][0]);
-    assert_eq!(3, disk[0][1]);
-    assert_eq!(3, disk[1][0]);
-    assert_eq!(3, disk[1][1]);
-    assert_eq!(1, disk[2][2]);
-    assert_eq!(1, disk[2][3]);
+    assert_eq!(Marked(3), disk[0][0]);
+    assert_eq!(Marked(3), disk[0][1]);
+    assert_eq!(Marked(3), disk[1][0]);
+    assert_eq!(Marked(3), disk[1][1]);
+    assert_eq!(Unmarked, disk[2][2]);
+    assert_eq!(Unmarked, disk[2][3]);
+    assert_eq!(Unmarked, disk[5][6]);
+    assert_eq!(Unmarked, disk[5][7]);
+    assert_eq!(Unmarked, disk[5][8]);
+    assert_eq!(Unmarked, disk[5][9]);
+    assert_eq!(Unmarked, disk[6][8]);
+    assert_eq!(Unmarked, disk[7][8]);
+    assert_eq!(Unmarked, disk[7][7]);
+    assert_eq!(Unmarked, disk[7][6]);
+    assert_eq!(Unmarked, disk[7][5]);
 
     mark_region(&mut disk, (2, 2), 4);
 
-    assert_eq!(3, disk[0][0]);
-    assert_eq!(3, disk[0][1]);
-    assert_eq!(3, disk[1][0]);
-    assert_eq!(3, disk[1][1]);
-    assert_eq!(4, disk[2][2]);
-    assert_eq!(4, disk[2][3]);
+    assert_eq!(Marked(3), disk[0][0]);
+    assert_eq!(Marked(3), disk[0][1]);
+    assert_eq!(Marked(3), disk[1][0]);
+    assert_eq!(Marked(3), disk[1][1]);
+    assert_eq!(Marked(4), disk[2][2]);
+    assert_eq!(Marked(4), disk[2][3]);
+    assert_eq!(Unmarked, disk[5][6]);
+    assert_eq!(Unmarked, disk[5][7]);
+    assert_eq!(Unmarked, disk[5][8]);
+    assert_eq!(Unmarked, disk[5][9]);
+    assert_eq!(Unmarked, disk[6][8]);
+    assert_eq!(Unmarked, disk[7][8]);
+    assert_eq!(Unmarked, disk[7][7]);
+    assert_eq!(Unmarked, disk[7][6]);
+    assert_eq!(Unmarked, disk[7][5]);
+
+    mark_region(&mut disk, (5,6), 22);
+
+    assert_eq!(Marked(3), disk[0][0]);
+    assert_eq!(Marked(3), disk[0][1]);
+    assert_eq!(Marked(3), disk[1][0]);
+    assert_eq!(Marked(3), disk[1][1]);
+    assert_eq!(Marked(4), disk[2][2]);
+    assert_eq!(Marked(4), disk[2][3]);
+    assert_eq!(Marked(22), disk[5][6]);
+    assert_eq!(Marked(22), disk[5][7]);
+    assert_eq!(Marked(22), disk[5][8]);
+    assert_eq!(Marked(22), disk[5][9]);
+    assert_eq!(Marked(22), disk[6][8]);
+    assert_eq!(Marked(22), disk[7][8]);
+    assert_eq!(Marked(22), disk[7][7]);
+    assert_eq!(Marked(22), disk[7][6]);
+    assert_eq!(Marked(22), disk[7][5]);
   }
 
   #[test]
@@ -192,8 +202,8 @@ mod test {
     let disk = create_disk_for_keystring("flqrgnkx".to_string());
     assert_eq!(128, disk.len());
     assert_eq!(128, disk[0].len());
-    assert_eq!(1, disk[0][0]);
-    assert_eq!(0, disk[5][2]);
+    assert_eq!(Unmarked, disk[0][0]);
+    assert_eq!(Free, disk[5][2]);
   }
 
   #[test]
@@ -207,13 +217,13 @@ mod test {
     let mut disk = create_disk_for_keystring("flqrgnkx".to_string());
     assert_eq!(1242, count_regions_in_disk(&mut disk));
 
-    let mut disk2 = vec![vec![0; 128]; 128];
-    disk2[0][0] = 1;
-    disk2[0][1] = 1;
-    disk2[1][0] = 1;
-    disk2[1][1] = 1;
-    disk2[2][2] = 1;
-    disk2[2][3] = 1;
+    let mut disk2 = vec![vec![Free; 128]; 128];
+    disk2[0][0] = Unmarked;
+    disk2[0][1] = Unmarked;
+    disk2[1][0] = Unmarked;
+    disk2[1][1] = Unmarked;
+    disk2[2][2] = Unmarked;
+    disk2[2][3] = Unmarked;
 
     assert_eq!(2, count_regions_in_disk(&mut disk2));
   }
