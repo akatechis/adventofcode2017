@@ -46,9 +46,11 @@ fn reset_scanners(scanners: &mut Scanners, delay: u32) {
 
 fn calculate_severity_for_trip(scanners: &Scanners, delay: u32) -> usize {
   let mut t_scanners = scanners.clone();
+
   delay_scanners(&mut t_scanners, delay);
   let severity = t_scanners.values().fold(0, severity);
   reset_scanners(&mut t_scanners, delay);
+
   severity
 }
 
