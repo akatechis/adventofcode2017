@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc;
 use std::thread;
+use std::time::Duration;
 use self::Instr::*;
 
 #[derive(Debug, Clone)]
@@ -15,32 +15,20 @@ enum Instr {
   Jump(String, String)
 }
 
-struct Process {
-  self_id: usize,
-  other_id: usize,
-  program_counter: usize,
-  sends_executed: usize,
-  registers: Registers
+#[derive(Debug)]
+struct InstructionCounter {
+  snd: usize,
+  set: usize,
+  add: usize,
+  mul: usize,
+  modulus: usize,
+  rcv: usize,
+  jump: usize
 }
 
-enum Message {
-  Working,
-  Waiting,
-  Send(usize, i64),
-  Recv
-}
-
-impl Process {
-  fn new(id: usize) -> Self {
-    let mut registers = Registers::new();
-    registers.insert('p', id as i64);
-    Self {
-      self_id: id,
-      other_id: if id == 0 { 1 } else { 0 },
-      registers,
-      program_counter: 0,
-      sends_executed: 0,
-    }
+impl InstructionCounter {
+  fn new() -> Self {
+    Self {snd: 0, set: 0, add: 0, mul: 0, modulus: 0, rcv: 0, jump: 0}
   }
 }
 
@@ -166,57 +154,145 @@ fn recover_sound(registers: &mut Registers, program: &Vec<Instr>) -> i64 {
   }
 }
 
-fn run_progam(program_ptr: Box<(usize, Vec<Instr>, Arc<Mutex<Vec<(usize, i64)>>>)>) -> Process {
-  let (pid, program, msg_queue) = *program_ptr;
-  let process = Process::new(pid);
-  process
-}
-
-fn run_parallel(program: &Vec<Instr>, processes: usize) {
-  let msg_queue = Arc::new(Mutex::new(vec![]));
-  let mut receivers = vec![];
-  let mut threads = vec![];
+fn run_parallel(program: &Vec<Instr>, processes: usize) -> Arc<Mutex<Vec<InstructionCounter>>> {
+  let counters = Arc::new(Mutex::new(vec![
+    InstructionCounter::new(),
+    InstructionCounter::new()
+  ]));
+  let msg_queue: Arc<Mutex<Vec<(usize, i64)>>> = Arc::new(Mutex::new(vec![]));
+  let proc_state = Arc::new(Mutex::new(vec!["working".to_string(), "working".to_string()]));
 
   for pid in 0..processes {
-    let (tx_p, rx_m) = mpsc::channel();
-    receivers.push(rx_m);
-    // let (tx_m, rx_p) = mpsc::channel();
+    let thread_program = program.clone();
+    let thread_proc_state = proc_state.clone();
+    let thread_msg_queue = msg_queue.clone();
+    let thread_counters = counters.clone();
 
-    let t_program = program.clone();
-    let t_queue = Arc::clone(&msg_queue);
-    let program_ptr = Box::new((pid, t_program, t_queue));
+    thread::spawn(move || {
+      let registers = &mut Registers::new();
+      registers.insert('p', pid as i64);
+      let mut program_counter = 0;
 
-    let t = thread::spawn(move || {
-      let process = run_progam(program_ptr);
-      tx_p.send(process).unwrap();
+      while program_counter < thread_program.len() {
+        match thread_program[program_counter] {
+          Rcv(ref reg) => {
+            thread_counters.lock().unwrap()[pid].rcv += 1;
+            let mut thread_states = thread_proc_state.lock().unwrap();
+            thread_states[pid] = "waiting".to_string();
+            println!("Thread {} waiting for a value", pid);
+            loop {
+              let mut queue = thread_msg_queue.lock().unwrap();
+              match queue.iter().position(|msg| msg.0 == pid) {
+                Some(msg_index) => {
+                  println!("Thread {} received a value", pid);
+                  let (_, value) = queue[msg_index];
+                  let register = reg.chars().nth(0).unwrap();
+                  registers.insert(register, value);
+                  queue.remove(msg_index);
+                  thread_states[pid] = "working".to_string();
+                  break;
+                },
+                None => {
+                  // release the lock before going to sleep, so other thread has a chance to snd
+                  drop(queue);
+                  thread::sleep(Duration::from_millis(200));
+                }
+              }
+            }
+          },
+          Snd(ref id) => {
+            thread_counters.lock().unwrap()[pid].snd += 1;
+            let other_pid = (pid + 1) % processes;
+            let value = register_val(registers, id);
+            thread_msg_queue.lock().unwrap().push((other_pid, value));
+            println!("Thread {} sent value to {}", pid, other_pid);
+          },
+          Set(ref reg, ref val_id) => {
+            thread_counters.lock().unwrap()[pid].set += 1;
+            let register = reg.chars().nth(0).unwrap();
+            let value = register_val(registers, val_id);
+            registers.insert(register, value);
+          },
+          Jump(ref reg, ref val) => {
+            thread_counters.lock().unwrap()[pid].jump += 1;
+            let reg_val = register_val(registers, reg);
+            let val_val = register_val(registers, val);
+            if reg_val > 0 {
+              if val_val > 0 {
+                program_counter += val_val as usize;
+              }
+              if val_val < 0 {
+                program_counter -= -val_val as usize;
+              }
+              // skip the increment phase of this instr
+              continue;
+            }
+          },
+          Mod(ref reg, ref val) => {
+            thread_counters.lock().unwrap()[pid].modulus += 1;
+            let register = reg.chars().nth(0).unwrap();
+            let reg_val = register_val(registers, reg);
+            let val_val = register_val(registers, val);
+            let prod = reg_val % val_val;
+            registers.insert(register, prod);
+          },
+          Mul(ref reg, ref val) => {
+            thread_counters.lock().unwrap()[pid].mul += 1;
+            let register = reg.chars().nth(0).unwrap();
+            let reg_val = register_val(registers, reg);
+            let val_val = register_val(registers, val);
+            let prod = reg_val * val_val;
+            registers.insert(register, prod);
+          },
+          Add(ref reg, ref val) => {
+            thread_counters.lock().unwrap()[pid].add += 1;
+            let register = reg.chars().nth(0).unwrap();
+            let reg_val = register_val(registers, reg);
+            let val_val = register_val(registers, val);
+            let sum = reg_val + val_val;
+            registers.insert(register, sum);
+          }
+        }
+        program_counter += 1;
+        thread::sleep(Duration::from_millis(50));
+      }
+
+      // all done. update thread_state
+      thread_proc_state.lock().unwrap()[pid] = "done".to_string();
     });
-
-    threads.push(t);
   }
+
+  loop {
+    let p_states = proc_state.lock().unwrap();
+    match (p_states[0].as_str(), p_states[1].as_str()) {
+      // terminal conditions:
+      // both threads done
+      ("done", "done") => break,
+
+      // a thread is waiting for a thread that will never send
+      ("done", "waiting") => break,
+      ("waiting", "done") => break,
+
+      // both threads waiting on each other
+      ("waiting", "waiting") => break,
+
+      // everything else, keep waiting
+      (_, _) => {
+        drop(p_states);
+        thread::sleep(Duration::from_millis(10));
+      }
+    }
+  }
+
+  counters
 }
 
 pub fn main () {
-  let mut registers = HashMap::new();
   let program: Vec<Instr> = include_str!("../input/eighteen").lines().map(compile_instruction).collect();
-  let sound = recover_sound(&mut registers, &program);
-  println!("Sound recovered = {}", sound);
+  // let mut registers = HashMap::new();
+  // let sound = recover_sound(&mut registers, &program);
+  // println!("Sound recovered = {}", sound);
 
-  run_parallel(&program, 2);
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn simple_program_runs_parallel() {
-    let program = vec![
-      Instr::Set("a".to_string(), "22".to_string()),
-      Instr::Add("a".to_string(), "20".to_string())
-    ];
-    let processes = run_parallel(&program);
-
-    assert_eq!(42, *processes[0].registers.get(&'a').unwrap());
-    assert_eq!(42, *processes[1].registers.get(&'a').unwrap());
-  }
+  let counters = run_parallel(&program, 2);
+  println!("Counter for second thread = {:?}", counters.lock().unwrap()[1]);
 }
