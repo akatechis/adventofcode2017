@@ -179,13 +179,12 @@ fn run_parallel(program: &Vec<Instr>, processes: usize) -> Arc<Mutex<Vec<Instruc
             thread_counters.lock().unwrap()[pid].rcv += 1;
             let mut thread_states = thread_proc_state.lock().unwrap();
             thread_states[pid] = "waiting".to_string();
-            println!("Thread {} waiting for a value", pid);
             loop {
               let mut queue = thread_msg_queue.lock().unwrap();
               match queue.iter().position(|msg| msg.0 == pid) {
                 Some(msg_index) => {
-                  println!("Thread {} received a value", pid);
                   let (_, value) = queue[msg_index];
+                  println!("Thread {} received value {}", pid, value);
                   let register = reg.chars().nth(0).unwrap();
                   registers.insert(register, value);
                   queue.remove(msg_index);
@@ -195,7 +194,7 @@ fn run_parallel(program: &Vec<Instr>, processes: usize) -> Arc<Mutex<Vec<Instruc
                 None => {
                   // release the lock before going to sleep, so other thread has a chance to snd
                   drop(queue);
-                  thread::sleep(Duration::from_millis(200));
+                  thread::sleep(Duration::from_millis(20));
                 }
               }
             }
@@ -205,7 +204,7 @@ fn run_parallel(program: &Vec<Instr>, processes: usize) -> Arc<Mutex<Vec<Instruc
             let other_pid = (pid + 1) % processes;
             let value = register_val(registers, id);
             thread_msg_queue.lock().unwrap().push((other_pid, value));
-            println!("Thread {} sent value to {}", pid, other_pid);
+            println!("Thread {} sent value {}", pid, value);
           },
           Set(ref reg, ref val_id) => {
             thread_counters.lock().unwrap()[pid].set += 1;
@@ -254,7 +253,7 @@ fn run_parallel(program: &Vec<Instr>, processes: usize) -> Arc<Mutex<Vec<Instruc
           }
         }
         program_counter += 1;
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(10));
       }
 
       // all done. update thread_state
@@ -278,8 +277,10 @@ fn run_parallel(program: &Vec<Instr>, processes: usize) -> Arc<Mutex<Vec<Instruc
 
       // everything else, keep waiting
       (_, _) => {
+        println!("States = {:?}", *p_states);
+        println!("Counter = {:?}", *counters.lock().unwrap());
         drop(p_states);
-        thread::sleep(Duration::from_millis(10));
+        thread::sleep(Duration::from_millis(500));
       }
     }
   }
