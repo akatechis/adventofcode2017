@@ -339,7 +339,7 @@ mod tests {
   }
 
   #[test]
-  fn split_image_works() {
+  fn split_image_works_for_mod_two_images() {
     let image = vec![
       parse_pixel_line("#..#"),
       parse_pixel_line("...."),
@@ -365,6 +365,79 @@ mod tests {
         vec![
           parse_pixel_line(".."),
           parse_pixel_line(".#")
+        ]
+      ]
+    ];
+    assert_eq!(expected, split_image(&image));
+  }
+
+  #[test]
+  fn split_image_works_for_mod_three_images() {
+    let image = vec![
+      parse_pixel_line(".#.#.#.#."),
+      parse_pixel_line("#.#.#.#.#"),
+      parse_pixel_line("..##.##.."),
+
+      parse_pixel_line(".#.###..."),
+      parse_pixel_line(".#.#....#"),
+      parse_pixel_line(".#.#...##"),
+
+      parse_pixel_line("...##.##."),
+      parse_pixel_line(".#.##...."),
+      parse_pixel_line(".#.#..#.#")
+    ];
+    let expected = vec![
+      vec![
+        vec![
+          parse_pixel_line(".#."),
+          parse_pixel_line("#.#"),
+          parse_pixel_line("..#")
+        ],
+        vec![
+          parse_pixel_line("#.#"),
+          parse_pixel_line(".#."),
+          parse_pixel_line("#.#")
+        ],
+        vec![
+          parse_pixel_line(".#."),
+          parse_pixel_line("#.#"),
+          parse_pixel_line("#..")
+        ]
+      ],
+
+      vec![
+        vec![
+          parse_pixel_line(".#."),
+          parse_pixel_line(".#."),
+          parse_pixel_line(".#.")
+        ],
+        vec![
+          parse_pixel_line("###"),
+          parse_pixel_line("#.."),
+          parse_pixel_line("#..")
+        ],
+        vec![
+          parse_pixel_line("..."),
+          parse_pixel_line("..#"),
+          parse_pixel_line(".##")
+        ]
+      ],
+
+      vec![
+        vec![
+          parse_pixel_line("..."),
+          parse_pixel_line(".#."),
+          parse_pixel_line(".#.")
+        ],
+        vec![
+          parse_pixel_line("##."),
+          parse_pixel_line("##."),
+          parse_pixel_line("#..")
+        ],
+        vec![
+          parse_pixel_line("##."),
+          parse_pixel_line("..."),
+          parse_pixel_line("#.#")
         ]
       ]
     ];
