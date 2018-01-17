@@ -10,9 +10,9 @@ enum Pixel {
 
 fn create_image() -> Image {
   vec![
-    parse_pixel_line(".#."),
-    parse_pixel_line("..#"),
-    parse_pixel_line("###")
+    parse_px(".#."),
+    parse_px("..#"),
+    parse_px("###")
   ]
 }
 
@@ -68,16 +68,30 @@ fn split_image(image: &Image) -> Vec<Vec<Image>> {
   images
 }
 
-fn parse_pixel_line(line: &str) -> Vec<Pixel> {
+fn parse_px(line: &str) -> Vec<Pixel> {
   line.chars().map(|ch| match ch {
     '#' => On, '.' => Off, _ => panic!()
   }).collect()
 }
 
+fn visualize(img: &Image) -> String {
+  let mut buf = String::new();
+  for row in img {
+    for pixel in row {
+      match *pixel {
+        Off => buf.push('.'),
+        On => buf.push('#'),
+      }
+    }
+    buf.push('\n');
+  }
+  buf
+}
+
 fn parse_rule_fragment(rule_str: &str) -> Image {
   let mut fragment = vec![];
   for line in rule_str.split('/') {
-    fragment.push(parse_pixel_line(line));
+    fragment.push(parse_px(line));
   }
   fragment
 }
@@ -211,19 +225,19 @@ mod tests {
   #[test]
   fn images_equal_works() {
     let img1 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("..#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("..#"),
+      parse_px("###")
     ];
     let img2 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("..#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("..#"),
+      parse_px("###")
     ];
     let img3 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("#.#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("#.#"),
+      parse_px("###")
     ];
 
     assert_eq!(true, images_equal(&img1, &img2));
@@ -233,14 +247,14 @@ mod tests {
   #[test]
   fn rotate_works() {
     let img1 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("..#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("..#"),
+      parse_px("###")
     ];
     let img3 = vec![
-      parse_pixel_line("#.."),
-      parse_pixel_line("#.#"),
-      parse_pixel_line("##.")
+      parse_px("#.."),
+      parse_px("#.#"),
+      parse_px("##.")
     ];
     assert_eq!(img3, rotate(&img1));
   }
@@ -248,14 +262,14 @@ mod tests {
   #[test]
   fn vertical_flip_works() {
     let img1 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("..#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("..#"),
+      parse_px("###")
     ];
     let img4 = vec![
-      parse_pixel_line("###"),
-      parse_pixel_line("..#"),
-      parse_pixel_line(".#.")
+      parse_px("###"),
+      parse_px("..#"),
+      parse_px(".#.")
     ];
     assert_eq!(img4, vertical_flip(&img1));
   }
@@ -263,14 +277,14 @@ mod tests {
   #[test]
   fn horizontal_flip_works() {
     let img1 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("..#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("..#"),
+      parse_px("###")
     ];
     let img4 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("#.."),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("#.."),
+      parse_px("###")
     ];
     assert_eq!(img4, horizontal_flip(&img1));
   }
@@ -278,24 +292,24 @@ mod tests {
   #[test]
   fn image_matches_rule_works() {
     let img1 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("..#"),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("..#"),
+      parse_px("###")
     ];
     let img2 = vec![
-      parse_pixel_line(".#."),
-      parse_pixel_line("#.."),
-      parse_pixel_line("###")
+      parse_px(".#."),
+      parse_px("#.."),
+      parse_px("###")
     ];
     let img3 = vec![
-      parse_pixel_line("#.."),
-      parse_pixel_line("#.#"),
-      parse_pixel_line("##.")
+      parse_px("#.."),
+      parse_px("#.#"),
+      parse_px("##.")
     ];
     let img4 = vec![
-      parse_pixel_line("###"),
-      parse_pixel_line("..#"),
-      parse_pixel_line(".#.")
+      parse_px("###"),
+      parse_px("..#"),
+      parse_px(".#.")
     ];
 
     let rule = (parse_rule_fragment(".#./..#/###"), parse_rule_fragment("../../.."));
@@ -309,27 +323,27 @@ mod tests {
   #[test]
   fn sub_image_works() {
     let image = vec![
-      parse_pixel_line("#..#"),
-      parse_pixel_line("...."),
-      parse_pixel_line("...."),
-      parse_pixel_line("#..#")
+      parse_px("#..#"),
+      parse_px("...."),
+      parse_px("...."),
+      parse_px("#..#")
     ];
 
     let one_one = vec![
-      parse_pixel_line("#."),
-      parse_pixel_line("..")
+      parse_px("#."),
+      parse_px("..")
     ];
     let one_two = vec![
-      parse_pixel_line(".#"),
-      parse_pixel_line("..")
+      parse_px(".#"),
+      parse_px("..")
     ];
     let two_one = vec![
-      parse_pixel_line(".."),
-      parse_pixel_line("#.")
+      parse_px(".."),
+      parse_px("#.")
     ];
     let two_two = vec![
-      parse_pixel_line(".."),
-      parse_pixel_line(".#")
+      parse_px(".."),
+      parse_px(".#")
     ];
 
     assert_eq!(one_one, sub_image(&image, 0, 0, 2));
@@ -341,30 +355,30 @@ mod tests {
   #[test]
   fn split_image_works_for_mod_two_images() {
     let image = vec![
-      parse_pixel_line("#..#"),
-      parse_pixel_line("...."),
-      parse_pixel_line("...."),
-      parse_pixel_line("#..#")
+      parse_px("#..#"),
+      parse_px("...."),
+      parse_px("...."),
+      parse_px("#..#")
     ];
     let expected = vec![
       vec![
         vec![
-          parse_pixel_line("#."),
-          parse_pixel_line("..")
+          parse_px("#."),
+          parse_px("..")
         ],
         vec![
-          parse_pixel_line(".#"),
-          parse_pixel_line("..")
+          parse_px(".#"),
+          parse_px("..")
         ]
       ],
       vec![
         vec![
-          parse_pixel_line(".."),
-          parse_pixel_line("#.")
+          parse_px(".."),
+          parse_px("#.")
         ],
         vec![
-          parse_pixel_line(".."),
-          parse_pixel_line(".#")
+          parse_px(".."),
+          parse_px(".#")
         ]
       ]
     ];
@@ -374,74 +388,83 @@ mod tests {
   #[test]
   fn split_image_works_for_mod_three_images() {
     let image = vec![
-      parse_pixel_line(".#.#.#.#."),
-      parse_pixel_line("#.#.#.#.#"),
-      parse_pixel_line("..##.##.."),
+      parse_px(".#.#.#.#."),
+      parse_px("#.#.#.#.#"),
+      parse_px("..##.##.."),
 
-      parse_pixel_line(".#.###..."),
-      parse_pixel_line(".#.#....#"),
-      parse_pixel_line(".#.#...##"),
+      parse_px(".#.###..."),
+      parse_px(".#.#....#"),
+      parse_px(".#.#...##"),
 
-      parse_pixel_line("...##.##."),
-      parse_pixel_line(".#.##...."),
-      parse_pixel_line(".#.#..#.#")
+      parse_px("...##.##."),
+      parse_px(".#.##...."),
+      parse_px(".#.#..#.#")
     ];
     let expected = vec![
       vec![
         vec![
-          parse_pixel_line(".#."),
-          parse_pixel_line("#.#"),
-          parse_pixel_line("..#")
+          parse_px(".#."),
+          parse_px("#.#"),
+          parse_px("..#")
         ],
         vec![
-          parse_pixel_line("#.#"),
-          parse_pixel_line(".#."),
-          parse_pixel_line("#.#")
+          parse_px("#.#"),
+          parse_px(".#."),
+          parse_px("#.#")
         ],
         vec![
-          parse_pixel_line(".#."),
-          parse_pixel_line("#.#"),
-          parse_pixel_line("#..")
+          parse_px(".#."),
+          parse_px("#.#"),
+          parse_px("#..")
         ]
       ],
 
       vec![
         vec![
-          parse_pixel_line(".#."),
-          parse_pixel_line(".#."),
-          parse_pixel_line(".#.")
+          parse_px(".#."),
+          parse_px(".#."),
+          parse_px(".#.")
         ],
         vec![
-          parse_pixel_line("###"),
-          parse_pixel_line("#.."),
-          parse_pixel_line("#..")
+          parse_px("###"),
+          parse_px("#.."),
+          parse_px("#..")
         ],
         vec![
-          parse_pixel_line("..."),
-          parse_pixel_line("..#"),
-          parse_pixel_line(".##")
+          parse_px("..."),
+          parse_px("..#"),
+          parse_px(".##")
         ]
       ],
 
       vec![
         vec![
-          parse_pixel_line("..."),
-          parse_pixel_line(".#."),
-          parse_pixel_line(".#.")
+          parse_px("..."),
+          parse_px(".#."),
+          parse_px(".#.")
         ],
         vec![
-          parse_pixel_line("##."),
-          parse_pixel_line("##."),
-          parse_pixel_line("#..")
+          parse_px("##."),
+          parse_px("##."),
+          parse_px("#..")
         ],
         vec![
-          parse_pixel_line("##."),
-          parse_pixel_line("..."),
-          parse_pixel_line("#.#")
+          parse_px("##."),
+          parse_px("..."),
+          parse_px("#.#")
         ]
       ]
     ];
-    assert_eq!(expected, split_image(&image));
+
+    let actual = split_image(&image);
+    // for i_row in 0..actual.len() {
+    //   for i_col in 0..actual[0].len() {
+    //     println!("expected[{}][{}] \n{}", i_row, i_col, visualize(&expected[i_row][i_col]));
+    //     println!("actual[{}][{}] \n{}", i_row, i_col, visualize(&actual[i_row][i_col]));
+    //   }
+    // }
+
+    assert_eq!(expected, actual);
   }
 
   #[test]
@@ -449,30 +472,30 @@ mod tests {
     let icons = vec![
       vec![
         vec![
-          parse_pixel_line(".#"),
-          parse_pixel_line(".#")
+          parse_px(".#"),
+          parse_px(".#")
         ],
         vec![
-          parse_pixel_line("#."),
-          parse_pixel_line("#.")
+          parse_px("#."),
+          parse_px("#.")
         ]
       ],
       vec![
         vec![
-          parse_pixel_line(".#"),
-          parse_pixel_line("##")
+          parse_px(".#"),
+          parse_px("##")
         ],
         vec![
-          parse_pixel_line("#."),
-          parse_pixel_line("##")
+          parse_px("#."),
+          parse_px("##")
         ]
       ]
     ];
     let expected = vec![
-      parse_pixel_line(".##."),
-      parse_pixel_line(".##."),
-      parse_pixel_line(".##."),
-      parse_pixel_line("####")
+      parse_px(".##."),
+      parse_px(".##."),
+      parse_px(".##."),
+      parse_px("####")
     ];
 
     let image = merge_images(icons);
