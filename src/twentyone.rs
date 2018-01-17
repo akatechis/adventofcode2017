@@ -1,4 +1,5 @@
 use self::Pixel::*;
+
 type Image = Vec<Vec<Pixel>>;
 type Rule = (Image, Image);
 
@@ -119,6 +120,9 @@ fn images_equal(left: &Image, right: &Image) -> bool {
 }
 
 fn image_matches_rule(img: &Image, rule: &Rule) -> bool {
+  if img.len() != rule.0.len() {
+    return false;
+  }
   if images_equal(img, &rule.0) {
     return true;
   }
@@ -147,32 +151,26 @@ fn image_matches_rule(img: &Image, rule: &Rule) -> bool {
 }
 
 fn merge_images(icons: Vec<Vec<Image>>) -> Image {
-  let split_size = icons[0][0].len();
-  let image = vec![];
-  let mut icon_row_ptr = 0;
+  let split = icons[0][0].len();
+  let mut image = vec![];
 
-  while icon_row_ptr < icons.len() {
-    let row = vec![];
-    let mut mapped_icons = icons[icon_row_ptr/split_size];
-    let mut col_ptr = 0;
+  for image_row in 0..icons.len() * split {
+    let mut pixel_row = vec![];
 
-    while col_ptr < mapped_icons.len() * split_size {
-      row.push(mapped_icons[col_ptr/split_size]);
-
-      col_ptr += 1;
+    for icon in &icons[image_row/split] {
+      pixel_row.extend(icon[image_row%split].iter().map(|p|p.clone()));
     }
 
-    image.push(row);
-    icon_row_ptr += 1;
+    image.push(pixel_row);
   }
 
   image
 }
 
-fn transform_image(src: &mut Image, ruleset: &Vec<Rule>, iterations: usize) {
-  let mut src_image = src.clone();
+fn transform_image(src: &mut Image, ruleset: &Vec<Rule>, iterations: usize) -> Image {
+  let mut new_image = src.clone();
   for _ in 0..iterations {
-    let mut icons = split_image(&src_image);
+    let mut icons = split_image(&new_image);
 
     for row in 0..icons.len() {
       for col in 0..icons[row].len() {
@@ -182,8 +180,10 @@ fn transform_image(src: &mut Image, ruleset: &Vec<Rule>, iterations: usize) {
       }
     }
 
-    src_image = merge_images(icons);
+    new_image = merge_images(icons);
   }
+
+  new_image
 }
 
 fn main_1() {
@@ -196,7 +196,8 @@ fn main_1() {
   .collect();
 
   let mut src_image = create_image();
-  transform_image(&mut src_image, &ruleset, 5);
+  let out_image = transform_image(&mut src_image, &ruleset, 5);
+  println!("Number of pixels on = {}", count_on_pixels(&out_image));
 }
 
 pub fn main() {
@@ -433,7 +434,7 @@ mod tests {
     ];
     let mut img = create_image();
 
-    transform_image(&mut img, &ruleset, 2);
-    assert_eq!(12, count_on_pixels(&img));
+    let new_image = transform_image(&mut img, &ruleset, 2);
+    assert_eq!(12, count_on_pixels(&new_image));
   }
 }
