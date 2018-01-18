@@ -8,6 +8,8 @@ fn parse(src: &str) -> Grid {
     match ch {
       '#' => Infected,
       '.' => Clean,
+      'W' => Weakened,
+      'F' => Flagged,
       _ => panic!("Unknown character")
     })
   .collect()).collect()
@@ -19,7 +21,9 @@ fn visualize(grid: &Grid) -> String {
     for node in row {
       let ch = match *node {
         Clean => '.',
-        Infected => '#'
+        Infected => '#',
+        Weakened => 'W',
+        Flagged => 'F'
       };
       buf.push(ch);
     }
@@ -31,7 +35,9 @@ fn visualize(grid: &Grid) -> String {
 #[derive(Debug, PartialEq, Clone)]
 enum Node {
   Clean,
-  Infected
+  Infected,
+  Weakened,
+  Flagged
 }
 
 enum Dir {
@@ -54,6 +60,15 @@ impl Dir {
       Down => Left,
       Left => Up,
       Right => Down
+    }
+  }
+
+  fn reverse(self) -> Dir {
+    match self {
+      Up => Down,
+      Down => Up,
+      Left => Right,
+      Right => Left
     }
   }
 }
@@ -92,7 +107,73 @@ fn expand_grid_rightwards(grid: &mut Grid) {
   }
 }
 
-fn count_infections_simulation(grid: &mut Grid, iterations: usize) -> usize {
+fn simulate_advanced_virus(grid: &mut Grid, iterations: usize) -> usize {
+  let mut infections = 0;
+  let mut direction = Up;
+  let mut row = grid.len() / 2;
+  let mut col = grid.len() / 2;
+
+  for _ in 0..iterations {
+    // turning phase
+    direction = match grid[row][col] {
+      Clean => direction.turn_left(),
+      Infected => direction.turn_right(),
+      Weakened => direction,
+      Flagged => direction.reverse()
+    };
+
+    // infection phase
+    match grid[row][col] {
+      Clean => {
+        grid[row][col] = Weakened;
+      },
+      Weakened => {
+        grid[row][col] = Infected;
+        infections += 1;
+      },
+      Infected => {
+        grid[row][col] = Flagged;
+      },
+      Flagged => {
+        grid[row][col] = Clean;
+      }
+    }
+
+    // move phase
+    match direction {
+      Up => {
+        if row == 0 {
+          expand_grid_upwards(grid);
+          row = grid.len() / 2;
+        }
+        row -= 1;
+      },
+      Down => {
+        if row == grid.len() - 1 {
+          expand_grid_downwards(grid);
+        }
+        row += 1;
+      },
+      Left => {
+        if col == 0 {
+          expand_grid_leftwards(grid);
+          col = grid[0].len() / 2;
+        }
+        col -= 1;
+      },
+      Right => {
+        if col == grid[row].len() - 1 {
+          expand_grid_rightwards(grid);
+        }
+        col += 1;
+      }
+    }
+  }
+
+  infections
+}
+
+fn simulate_simple_virus(grid: &mut Grid, iterations: usize) -> usize {
   let mut infections = 0;
   let mut direction = Up;
   let mut row = grid.len() / 2;
@@ -150,15 +231,23 @@ fn count_infections_simulation(grid: &mut Grid, iterations: usize) -> usize {
   infections
 }
 
+fn main_2() {
+  let mut input = parse(include_str!("../input/twentytwo"));
+  let infections = simulate_advanced_virus(&mut input, 10_000_000);
+
+  println!("No. of Advanced Infections = {}", infections);
+}
+
 fn main_1() {
   let mut input = parse(include_str!("../input/twentytwo"));
-  let infections = count_infections_simulation(&mut input, 10_000);
+  let infections = simulate_simple_virus(&mut input, 10_000);
 
-  println!("No. of Infections = {}", infections);
+  println!("No. of Advanced Infections = {}", infections);
 }
 
 pub fn main () {
   main_1();
+  main_2();
 }
 
 #[cfg(test)]
@@ -166,10 +255,22 @@ mod tests {
   use super::*;
 
   #[test]
-  fn count_infections_simulation_works() {
+  fn simulate_advanced_virus_works() {
     fn run_test(iterations: usize, expected: usize) {
       let mut input = parse("..#\n#..\n...");
-      let actual = count_infections_simulation(&mut input, iterations);
+      let actual = simulate_advanced_virus(&mut input, iterations);
+      assert_eq!(expected, actual);
+    }
+
+    run_test(100, 26);
+    run_test(10_000_000, 2_511_944);
+  }
+
+  #[test]
+  fn simulate_simple_virus_works() {
+    fn run_test(iterations: usize, expected: usize) {
+      let mut input = parse("..#\n#..\n...");
+      let actual = simulate_simple_virus(&mut input, iterations);
       assert_eq!(expected, actual);
     }
 
