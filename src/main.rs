@@ -1,5 +1,5 @@
-mod twentyone;
+mod twentytwo;
 
 fn main() {
-  twentyone::main();
+  twentytwo::main();
 }
