@@ -46,7 +46,7 @@ fn sub_image(image: &Image, row: usize, col: usize, size: usize) -> Image {
 fn split_image(image: &Image) -> Vec<Vec<Image>> {
   let img_size = image.len();
   let split_size = if img_size % 2 == 0 { 2 } else { 3 };
-  let last_row = (img_size / split_size) + 1;
+  let last_row = img_size - split_size;
 
   let mut images: Vec<Vec<Image>> = vec![];
   let mut row_ptr = 0;
@@ -211,11 +211,26 @@ fn main_1() {
 
   let mut src_image = create_image();
   let out_image = transform_image(&mut src_image, &ruleset, 5);
-  println!("Number of pixels on = {}", count_on_pixels(&out_image));
+  println!("Number of pixels on after 5 iterations = {}", count_on_pixels(&out_image));
+}
+
+fn main_2() {
+  let ruleset = include_str!("../input/twentyone").lines().map(|rule| {
+    let mut rule_parts = rule.split(" => ");
+    let rule_in = parse_rule_fragment(rule_parts.next().unwrap());
+    let rule_out = parse_rule_fragment(rule_parts.next().unwrap());
+    (rule_in, rule_out)
+  })
+  .collect();
+
+  let mut src_image = create_image();
+  let out_image = transform_image(&mut src_image, &ruleset, 18);
+  println!("Number of pixels on after 18 iterations = {}", count_on_pixels(&out_image));
 }
 
 pub fn main() {
   main_1();
+  main_2();
 }
 
 #[cfg(test)]
