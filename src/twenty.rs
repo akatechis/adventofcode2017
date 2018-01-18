@@ -43,10 +43,38 @@ impl Particle {
   }
 }
 
-fn nearest_particle_simulation(particles: &mut Vec<Particle>) -> usize {
-  let nearest_particle = 0;
+fn nearest_to_origin(particles: &Vec<Particle>) -> usize {
+  particles.iter().min_by_key(|p|p.distance()).unwrap().id
+}
 
-  nearest_particle
+fn nearest_particle_simulation(particles: &mut Vec<Particle>) -> usize {
+  let mut nearest = particles[0].id;
+  let mut nearest_streak = 0;
+  let streak_req = 1000;
+
+  loop {
+    for particle in particles.iter_mut() {
+      particle.tick();
+    }
+
+    let this_nearest = nearest_to_origin(particles);
+
+    // new nearest, reset the streak
+    if nearest != this_nearest {
+      nearest = this_nearest;
+      nearest_streak = 0;
+    }
+    else {
+      nearest_streak += 1;
+    }
+
+    // streak has completed. we're done
+    if nearest_streak == streak_req {
+      break;
+    }
+  }
+
+  nearest
 }
 
 fn remove_collided_particles(particles: &mut Vec<Particle>) -> bool {
@@ -70,9 +98,7 @@ fn remove_collided_particles(particles: &mut Vec<Particle>) -> bool {
       collided.push(this_particle.id);
     }
   }
-
   particles.retain(|ref p| !collided.contains(&p.id));
-
   collided.len() > 0
 }
 
@@ -111,7 +137,21 @@ fn main_2() {
   println!("Remaining particles = {}", particles.len());
 }
 
+fn main_1() {
+  let mut id = 0;
+  let mut particles: Vec<Particle> = include_str!("../input/twenty").lines().map(|ln| {
+    let p = Particle::parse(id, ln);
+    id += 1;
+    p
+  })
+  .collect();
+
+  let nearest_particle = nearest_particle_simulation(&mut particles);
+  println!("Nearest particle = {}", nearest_particle);
+}
+
 pub fn main () {
+  main_1();
   main_2();
 }
 
@@ -205,11 +245,10 @@ mod tests {
   }
 
   #[test]
-  #[ignore]
   fn nearest_particle_simulation_works() {
     let mut particles = vec![
-      Particle::parse(1, "p=< 3,0,0>, v=< 2,0,0>, a=<-1,0,0>"),
-      Particle::parse(2, "p=< 4,0,0>, v=< 0,0,0>, a=<-2,0,0>")
+      Particle::parse(0, "p=< 3,0,0>, v=< 2,0,0>, a=<-1,0,0>"),
+      Particle::parse(1, "p=< 4,0,0>, v=< 0,0,0>, a=<-2,0,0>")
     ];
     let nearest_particle = nearest_particle_simulation(&mut particles);
 
