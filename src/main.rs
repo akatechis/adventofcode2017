@@ -1,5 +1,7 @@
-mod twentythree;
+extern crate rayon;
+
+mod twentyfour;
 
 fn main() {
-  twentythree::main();
+  twentyfour::main();
 }
