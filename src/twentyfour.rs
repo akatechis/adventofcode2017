@@ -1,15 +1,10 @@
-use std::collections::HashSet;
 use rayon::prelude::*;
 
 type Item = (usize, usize);
 type Bridge = Vec<Item>;
 
-fn item_strength(item: &Item) -> usize {
-  item.0 + item.1
-}
-
 fn bridge_strength(items: &Vec<Item>) -> usize {
-  items.iter().fold(0, |s, item| s + item_strength(&item))
+  items.iter().fold(0, |s, &(a, b)| s + a + b)
 }
 
 fn parse(src: &str) -> Vec<Item> {
@@ -21,65 +16,83 @@ fn parse(src: &str) -> Vec<Item> {
   }).collect()
 }
 
+/// returns `true` if `bridge` can be appended with `item` 
 fn can_extend(bridge: &Bridge, item: &Item) -> bool {
   let last_item = bridge.iter().last().unwrap();
   last_item.1 == item.0
 }
 
-fn build_bridge(root: &Item, items: &mut Vec<Item>) -> Bridge {
-  let mut bridge = vec![*root];
-  let mut ptr = 0;
-  let mut used_items = HashSet::new();
+fn reverse_item(item: &Item) -> Item {
+  (item.1, item.0)
+}
 
-  loop {
-    let next_item = items[ptr];
-    let mut fit = false;
-
-    // if the next_item "fits"
-    if !used_items.contains(&ptr) && can_extend(&bridge, &next_item) {
-      used_items.insert(ptr);
-      bridge.push();
-      fit = true;
-    }
-    else if !used_items.contains(&ptr) && can_extend(&bridge, &(next_item.1, next_item.0)) {
-      used_items.insert(ptr);
-      bridge.push();
-      fit = true;
-    }
-
-    if fit {
-      ptr = 0; // new piece might have made some previous piece fit
-    }
-    else {
-      ptr += 1;
-    }
-
-    if ptr == items.len() {
-      break;
-    }
+/// extends the given `bridge`, using items from `items`
+fn extend_bridge(bridge: &mut Bridge, items: &mut Vec<Item>) {
+  // if there are no more items, return
+  if items.is_empty() {
+    return;
   }
 
-  bridge
+  // get a list of all items from `items` that can extend the bridge
+  let candidates = get_bridge_candidate_indices(&bridge, &items);
+
+  if candidates.is_empty() {
+    return;
+  }
+  else {
+    let strongest_bridge = candidates.iter().map(|&candidate_i| {
+      let mut items_local = items.clone();
+      let candidate_root = {
+        let bridge_last = bridge.last().unwrap();
+        let mut candidate_item = items_local.remove(candidate_i);
+        if candidate_item.0 != bridge_last.1 {
+          candidate_item = reverse_item(&candidate_item);
+        }
+        candidate_item
+      };
+      let mut candidate_bridge = vec![candidate_root];
+      extend_bridge(&mut candidate_bridge, &mut items_local);
+      candidate_bridge
+    })
+    .max_by_key(bridge_strength).unwrap();
+    bridge.extend(strongest_bridge);
+  }
+}
+
+fn get_bridge_candidate_indices(bridge: &Bridge, items: &Vec<Item>) -> Vec<usize> {
+  items.iter().enumerate()
+  .filter(|&(_, item)|
+    can_extend(&bridge, &item) || can_extend(&bridge, &reverse_item(&item)))
+  .map(|(pos, _)| pos).collect()
+}
+
+fn get_root_indices(items: &Vec<Item>) -> Vec<usize> {
+  items.iter().enumerate()
+    .filter(|&(_, item)| item.0 == 0 || item.1 == 0)
+    .map(|(pos, _)| pos)
+    .collect()
 }
 
 fn construct_bridge(items: &Vec<Item>) -> Bridge {
-  let mut initial_pieces = vec![];
+  let roots = get_root_indices(items);
 
-  // select initial pieces
-  for n in 0..items.len() {
-    if items[n].0 == 0 || items[n].1 == 0 {
-      initial_pieces.push(n);
-    }
-  }
+  let strongest = roots.par_iter().map(|&root_i| {
+    let mut items_local = items.clone();
+    let root = {
+      let mut root = items_local.remove(root_i);
+      if root.1 == 0 {
+        root = reverse_item(&root);
+      }
+      root
+    };
+    let mut bridge = vec![root];
+    extend_bridge(&mut bridge, &mut items_local);
 
-  let bridges: Vec<Bridge> = initial_pieces.par_iter().map(|piece|{
-    let mut items_c = items.clone();
-    let root = items_c.swap_remove(*piece);
-    build_bridge(&root, &mut items_c)
+    bridge
   })
-  .collect();
+  .max_by_key(bridge_strength).unwrap();
 
-  bridges.iter().max_by_key(|b| bridge_strength(&b)).unwrap().clone()
+  strongest
 }
 
 fn main_1() {
@@ -97,13 +110,38 @@ mod tests {
   use super::*;
 
   #[test]
+  fn get_bridge_candidate_indices_works() {
+    let bridge = vec![(1,2), (2,9), (9,5)];
+    let items = vec![(10, 22), (5, 12), (1,31), (5,7), (5,10)];
+    let expected = vec![1, 3, 4];
+    assert_eq!(expected, get_bridge_candidate_indices(&bridge, &items));
+  }
+
+  #[test]
+  fn reverse_item_works() {
+    let item = (10, 33);
+    let rev = reverse_item(&item);
+    assert_eq!(item, (10, 33));
+    assert_eq!(rev, (33, 10));
+  }
+
+  #[test]
+  fn get_root_indices_works() {
+    let items = vec![
+      (0,2), (2,2), (2,3), (3,4), (3,5), (1,0), (10,1), (9,10)
+    ];
+    let roots = vec![0, 5];
+    assert_eq!(roots, get_root_indices(&items));
+  }
+
+  #[test]
   fn construct_bridge_works() {
     let items = vec![
       (0,2), (2,2), (2,3), (3,4), (3,5), (0,1), (10,1), (9,10)
     ];
 
     let bridge = construct_bridge(&items);
-    assert_eq!(bridge, vec![(0,1),(10,1),(9,10)]);
+    assert_eq!(bridge, vec![(0,1),(1,10),(10,9)]);
   }
 
   #[test]
