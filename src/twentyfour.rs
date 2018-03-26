@@ -1,10 +1,22 @@
+use std::cmp::Ordering;
 use rayon::prelude::*;
 
 type Item = (usize, usize);
 type Bridge = Vec<Item>;
 
-fn bridge_strength(items: &Vec<Item>) -> usize {
-  items.iter().fold(0, |s, &(a, b)| s + a + b)
+fn bridge_strength(bridge: &Bridge) -> usize {
+  bridge.iter().fold(0, |s, &(a, b)| s + a + b)
+}
+
+fn cmp_bridge_strength(a: &Bridge, b: &Bridge) -> Ordering {
+  let a_str = bridge_strength(a);
+  let b_str = bridge_strength(b);
+  a_str.cmp(&b_str)
+}
+
+fn cmp_bridge_length_and_strength(a: &Bridge, b: &Bridge) -> Ordering {
+  a.len().cmp(&b.len()).then_with(||
+    cmp_bridge_strength(a, b))
 }
 
 fn parse(src: &str) -> Vec<Item> {
@@ -27,7 +39,8 @@ fn reverse_item(item: &Item) -> Item {
 }
 
 /// extends the given `bridge`, using items from `items`
-fn extend_bridge(bridge: &mut Bridge, items: &mut Vec<Item>) {
+fn extend_bridge<F>(bridge: &mut Bridge, items: &mut Vec<Item>, compare_fn: &F) 
+  where F: Fn(&Bridge, &Bridge) -> Ordering + Send + Sync {
   // if there are no more items, return
   if items.is_empty() {
     return;
@@ -51,10 +64,10 @@ fn extend_bridge(bridge: &mut Bridge, items: &mut Vec<Item>) {
         candidate_item
       };
       let mut candidate_bridge = vec![candidate_root];
-      extend_bridge(&mut candidate_bridge, &mut items_local);
+      extend_bridge(&mut candidate_bridge, &mut items_local, compare_fn);
       candidate_bridge
     })
-    .max_by_key(bridge_strength).unwrap();
+    .max_by(compare_fn).unwrap();
     bridge.extend(strongest_bridge);
   }
 }
@@ -73,7 +86,8 @@ fn get_root_indices(items: &Vec<Item>) -> Vec<usize> {
     .collect()
 }
 
-fn construct_bridge(items: &Vec<Item>) -> Bridge {
+fn construct_bridge<F>(items: &Vec<Item>, compare_fn: F) -> Bridge 
+  where F: Fn(&Bridge, &Bridge) -> Ordering + Send + Sync {
   let roots = get_root_indices(items);
 
   let strongest = roots.par_iter().map(|&root_i| {
@@ -86,23 +100,30 @@ fn construct_bridge(items: &Vec<Item>) -> Bridge {
       root
     };
     let mut bridge = vec![root];
-    extend_bridge(&mut bridge, &mut items_local);
+    extend_bridge(&mut bridge, &mut items_local, &compare_fn);
 
     bridge
   })
-  .max_by_key(bridge_strength).unwrap();
+  .max_by(&compare_fn).unwrap();
 
   strongest
 }
 
 fn main_1() {
   let bridge_items = parse(include_str!("../input/24"));
-  let bridge = construct_bridge(&bridge_items);
-  println!("Strength of bridge = {}", bridge_strength(&bridge));
+  let bridge = construct_bridge(&bridge_items, cmp_bridge_strength);
+  println!("Strength of strongest bridge = {}", bridge_strength(&bridge));
+}
+
+fn main_2() {
+  let bridge_items = parse(include_str!("../input/24"));
+  let bridge = construct_bridge(&bridge_items, cmp_bridge_length_and_strength);
+  println!("Strength of longest bridge = {}", bridge_strength(&bridge));
 }
 
 pub fn main() {
   main_1();
+  main_2();
 }
 
 #[cfg(test)]
@@ -140,7 +161,7 @@ mod tests {
       (0,2), (2,2), (2,3), (3,4), (3,5), (0,1), (10,1), (9,10)
     ];
 
-    let bridge = construct_bridge(&items);
+    let bridge = construct_bridge(&items, cmp_bridge_strength);
     assert_eq!(bridge, vec![(0,1),(1,10),(10,9)]);
   }
 
@@ -155,5 +176,38 @@ mod tests {
   fn bridge_strength_works() {
     let bridge = vec![(10,20),(5,10),(3,17)];
     assert_eq!(bridge_strength(&bridge), 65);
+  }
+
+  #[test]
+  fn cmp_bridge_strength_works() {
+    let a = vec![(10,20),(5,10),(3,17)];
+    let b = vec![(10,20),(5,10),(3,18)];
+
+    assert_eq!(Ordering::Less, cmp_bridge_strength(&a, &b));
+    assert_eq!(Ordering::Equal, cmp_bridge_strength(&b, &b));
+    assert_eq!(Ordering::Equal, cmp_bridge_strength(&a, &a));
+    assert_eq!(Ordering::Greater, cmp_bridge_strength(&b, &a));
+  }
+
+  #[test]
+  fn cmp_bridge_length_and_strength_uses_length_for_different_size_bridges() {
+    let a = vec![(10,20),(5,10),(3,18)];
+    let b = vec![(10,20),(5,10),(1,1),(2, 2)];
+
+    assert_eq!(Ordering::Less, cmp_bridge_length_and_strength(&a, &b));
+    assert_eq!(Ordering::Equal, cmp_bridge_length_and_strength(&b, &b));
+    assert_eq!(Ordering::Equal, cmp_bridge_length_and_strength(&a, &a));
+    assert_eq!(Ordering::Greater, cmp_bridge_length_and_strength(&b, &a));
+  }
+
+  #[test]
+  fn cmp_bridge_length_and_strength_uses_strength_for_same_size_bridges() {
+    let a = vec![(10,20),(5,10),(1,1),(2, 2)];
+    let b = vec![(10,20),(5,10),(1,1),(2, 3)];
+
+    assert_eq!(Ordering::Less, cmp_bridge_length_and_strength(&a, &b));
+    assert_eq!(Ordering::Equal, cmp_bridge_length_and_strength(&b, &b));
+    assert_eq!(Ordering::Equal, cmp_bridge_length_and_strength(&a, &a));
+    assert_eq!(Ordering::Greater, cmp_bridge_length_and_strength(&b, &a));
   }
 }
